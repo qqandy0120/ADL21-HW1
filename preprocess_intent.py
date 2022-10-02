@@ -32,7 +32,7 @@ def build_vocab(
 
     glove: Dict[str, List[float]] = {}
     logging.info(f"Loading glove: {str(glove_path.resolve())}")
-    with open(glove_path) as fp:
+    with open(glove_path, encoding='utf-8') as fp:
         row1 = fp.readline()
         # if the first row is not header
         if not re.match("^[0-9]+ [0-9]+$", row1):
