@@ -68,10 +68,9 @@ class SeqClsDataset(Dataset):
         # TODO: implement collate_fn
         tokenizer = get_tokenizer("basic_english")
         tensors = []
-        intents = [sample['intent'] for sample in samples]
+        intents = [self.label_mapping[sample['intent']] for sample in samples]
         for sample in samples:
             tokens = tokenizer(sample['text']) 
-            intent = sample['intent']
             for token in tokens:  # remove word not in embedding_dict
                 if not token in self.embeddings_dict.keys():
                     tokens.remove(token)
@@ -104,7 +103,7 @@ class SeqTaggingClsDataset(SeqClsDataset):
         raise NotImplementedError
 
 if __name__ == '__main__':
-
+    pass
     with open('data\\intent\\train.json') as f:
         data = json.load(f)
 
@@ -118,7 +117,7 @@ if __name__ == '__main__':
         data=data,
         vocab=voc,
         label_mapping=label_mapping,
-        max_len= 50,
+        max_len= 15,
         glove_path= 'glove.840B.300d.txt'
     )
 
@@ -131,6 +130,7 @@ if __name__ == '__main__':
 
     for i, batch in enumerate(dataloader):
         print(batch['text'].shape)
+        print(batch['intent'])
 
         if i == 100:
             break
