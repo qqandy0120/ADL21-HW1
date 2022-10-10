@@ -1,5 +1,5 @@
 from typing import Iterable, List
-
+from collections import Counter
 
 class Vocab:
     PAD = "[PAD]"
@@ -42,3 +42,15 @@ class Vocab:
 def pad_to_len(seqs: List[List[int]], to_len: int, padding: int) -> List[List[int]]:
     paddeds = [seq[:to_len] + [padding] * max(0, to_len - len(seq)) for seq in seqs]
     return paddeds
+
+
+if __name__ == '__main__':
+    import pickle
+
+    sentence = Counter(['My', 'name', 'is', 'andy'])
+
+    others = ['Hello', 'World', '!']
+
+    vocab = Vocab(sentence)
+    print(vocab.tokens)
+    print(vocab.encode(others))

@@ -40,7 +40,7 @@ def build_vocab(
             fp.seek(0)
         # otherwise ignore the header
 
-        for i, line in tqdm(enumerate(fp)):
+        for i, line in tqdm(enumerate(fp)):  # line: 'me': [0.22, 0.23, ....]
             cols = line.rstrip().split(" ")
             word = cols[0]
             vector = [float(v) for v in cols[1:]]
@@ -106,7 +106,7 @@ def parse_args() -> Namespace:
         help="Path to Glove Embedding.",
         default="./glove.840B.300d.txt",
     )
-    parser.add_argument("--rand_seed", type=int, help="Random seed.", default=13)
+    parser.add_argument("--rand_seed", type=int, help="Random seed.", default=7777)
     parser.add_argument(
         "--output_dir",
         type=Path,
@@ -120,6 +120,7 @@ def parse_args() -> Namespace:
         default=10_000,
     )
     args = parser.parse_args()
+    
     return args
 
 

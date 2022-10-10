@@ -1,54 +1,88 @@
 import json
-import pickle
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Dict
 
 import torch
 
 from dataset import SeqClsDataset
+
+
+# self adding
+import os
+import pandas as pd
+import math
 from model import SeqClassifier
-from utils import Vocab
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 
-def main(args):
-    with open(args.cache_dir / "vocab.pkl", "rb") as f:
-        vocab: Vocab = pickle.load(f)
-
+def inference(args):
+    # load data
     intent_idx_path = args.cache_dir / "intent2idx.json"
-    intent2idx: Dict[str, int] = json.loads(intent_idx_path.read_text())
-
-    data = json.loads(args.test_file.read_text())
-    dataset = SeqClsDataset(data, vocab, intent2idx, args.max_len)
-    # TODO: crecate DataLoader for test dataset
-
-    embeddings = torch.load(args.cache_dir / "embeddings.pt")
-
-    model = SeqClassifier(
-        embeddings,
-        args.hidden_size,
-        args.num_layers,
-        args.dropout,
-        args.bidirectional,
-        dataset.num_classes,
+    intent2idx = json.loads(intent_idx_path.read_text())
+    test_data_path = args.data_dir / "test.json"
+    test_data = json.loads(test_data_path.read_text())
+    test_dataset = SeqClsDataset(test_data, intent2idx, args.max_len, args.glove_path)
+    test_dataloader = DataLoader(
+        test_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=test_dataset.collate_fn,
     )
+
+
+    # choose device
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # load model
+    model = SeqClassifier(
+        input_size=args.input_size,
+        hidden_size=args.hidden_size,
+        num_layers=args.num_layers,
+        num_classes=150,
+        batch_first=args.batch_first,
+        bidirectional=args.bidirectional,
+    ).to(device)
+    model.load_state_dict(torch.load(os.path.join(args.ckpt_dir, args.model_name, f'classifier_{str(args.infer_epoch).zfill(2)}.bin')))
     model.eval()
+    
+    # prediction list
+    ids = []
+    intents = []
 
-    ckpt = torch.load(args.ckpt_path)
-    # load weights into model
+    # testing loop
+    test_bar = tqdm(
+                test_dataloader,
+                position=0,
+                leave=True,
+                total=len(test_dataloader)
+    )
+    for batch in test_bar:
+        batch['text'] = batch['text'].to(device)
 
-    # TODO: predict dataset
+        intent_logits = model(batch['text'])
+        pred_intents_id = torch.argmax(intent_logits, dim=1)  # B
+        
+        pred_intents_id = pred_intents_id.to('cpu')
 
-    # TODO: write prediction to file (args.pred_file)
-
+        ids.extend(batch['id'])
+        intents.extend([test_dataset.idx2label(id.item()) for id in pred_intents_id])
+        
+    pred_dict = pd.DataFrame({
+        'id': ids,
+        'intent': intents
+    })
+    pred_save_path = os.path.join(args.ckpt_dir, args.model_name, 'intent_pred.csv')
+    pred_dict.to_csv(pred_save_path,index=False)
+    
 
 def parse_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument(
-        "--test_file",
+        "--data_dir",
         type=Path,
-        help="Path to the test file.",
-        required=True
+        help="Directory to the dataset.",
+        default="./data/intent/",
     )
     parser.add_argument(
         "--cache_dir",
@@ -57,32 +91,42 @@ def parse_args() -> Namespace:
         default="./cache/intent/",
     )
     parser.add_argument(
-        "--ckpt_path",
+        "--ckpt_dir",
         type=Path,
-        help="Path to model checkpoint.",
-        required=True
+        help="Directory to save the model file.",
+        default="./ckpt/intent/",
     )
-    parser.add_argument("--pred_file", type=Path, default="pred.intent.csv")
 
     # data
-    parser.add_argument("--max_len", type=int, default=128)
+    parser.add_argument(
+        "--glove_path",
+        type=Path,
+        help="glove word embedding txt path.",
+        default="./glove.840B.300d.txt")
+    parser.add_argument("--max_len", type=int, default=50)
 
     # model
+    parser.add_argument('--input_size', type=int, help="word embedding dimension", default=300)
     parser.add_argument("--hidden_size", type=int, default=512)
     parser.add_argument("--num_layers", type=int, default=2)
+    parser.add_argument("--batch_first", type=bool, default=True)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--bidirectional", type=bool, default=True)
+
 
     # data loader
     parser.add_argument("--batch_size", type=int, default=128)
 
-    parser.add_argument(
-        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cpu"
-    )
+
+    # selected model name and epoch
+    parser.add_argument("--model_name", type=str)
+    parser.add_argument("--infer_epoch", type=int)
     args = parser.parse_args()
     return args
 
-
 if __name__ == "__main__":
+
     args = parse_args()
-    main(args)
+    args.ckpt_dir.mkdir(parents=True, exist_ok=True)
+    
+    inference(args)

@@ -1,22 +1,87 @@
 import json
-import pickle
+from typing import List
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Dict
 
 import torch
+from dataset import SeqTaggingClsDataset
+
+
+# self adding
+import os
+import pandas as pd
+from model import SeqTagger
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from dataset import SeqTaggingClsDataset
-from model import SeqTagger
-from utils import Vocab
+
+def inference(args):
+
+    assert args.model_name is not None and args.infer_epoch is not None, "Please select model name and inference epoch to do inference."
+
+    # load data
+    tag_idx_path = args.cache_dir / "tag2idx.json"
+    tag2idx = json.loads(tag_idx_path.read_text())
+    test_data_path = args.data_dir / "test.json"
+    test_data = json.loads(test_data_path.read_text())
+    test_dataset = SeqTaggingClsDataset(test_data, tag2idx, args.max_len, args.glove_path)
+    test_dataloader = DataLoader(
+        test_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=test_dataset.collate_fn,
+    )
 
 
-def main(args):
-    # TODO: implement main function
-    raise NotImplementedError
+    # choose device
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+    # load model
+    model = SeqTagger(
+        input_size=args.input_size,
+        hidden_size=args.hidden_size,
+        num_layers=args.num_layers,
+        num_classes=9,
+        batch_first=args.batch_first,
+        bidirectional=args.bidirectional,
+    ).to(device)
+    model.load_state_dict(torch.load(os.path.join(args.ckpt_dir, args.model_name, f'classifier_{str(args.infer_epoch).zfill(2)}.bin')))
+    model.eval()
+    
+    # prediction list
+    final_ids = []
+    final_tags = []
+
+    # testing loop
+    test_bar = tqdm(
+                test_dataloader,
+                position=0,
+                leave=True,
+                total=len(test_dataloader)
+    )
+    for batch in test_bar:
+        batch['tokens'] = batch['tokens'].to(device)
+    
+        tags_logits = model(batch['tokens'])
+        pred_slot_ids = torch.argmax(tags_logits, dim=2)  # (B * max_len)
+        
+        pred_slot_ids = pred_slot_ids.to('cpu')
+        pred_slot_ids = [tags[:batch['len'][idx]] for idx, tags in enumerate(pred_slot_ids)]  # get correct length of a sentence
+        pred_slot_tags: List[str] = [' '.join(test_dataset.idx2label(tag.item()) for tag in ids) for ids in pred_slot_ids]  # id2label
+
+        final_ids.extend(batch['id'])
+        final_tags.extend(pred_slot_tags)
+
+
+
+        
+    pred_dict = pd.DataFrame({
+        'id': final_ids,
+        'tags': final_tags
+    })
+    pred_save_path = os.path.join(args.ckpt_dir, args.model_name, 'tags_pred.csv')
+    pred_dict.to_csv(pred_save_path,index=False)
+    
 
 def parse_args() -> Namespace:
     parser = ArgumentParser()
@@ -38,27 +103,37 @@ def parse_args() -> Namespace:
         help="Directory to save the model file.",
         default="./ckpt/slot/",
     )
-    parser.add_argument("--pred_file", type=Path, default="pred.slot.csv")
 
     # data
-    parser.add_argument("--max_len", type=int, default=128)
+    parser.add_argument(
+        "--glove_path",
+        type=Path,
+        help="glove word embedding txt path.",
+        default="./glove.840B.300d.txt")
+    parser.add_argument("--max_len", type=int, default=50)
 
     # model
+    parser.add_argument('--input_size', type=int, help="word embedding dimension", default=300)
     parser.add_argument("--hidden_size", type=int, default=512)
     parser.add_argument("--num_layers", type=int, default=2)
+    parser.add_argument("--batch_first", type=bool, default=True)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--bidirectional", type=bool, default=True)
+
 
     # data loader
     parser.add_argument("--batch_size", type=int, default=128)
 
-    parser.add_argument(
-        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cpu"
-    )
+
+    # selected model name and epoch
+    parser.add_argument("--model_name", type=str)
+    parser.add_argument("--infer_epoch", type=int)
     args = parser.parse_args()
     return args
 
-
 if __name__ == "__main__":
+
     args = parse_args()
-    main(args)
+    args.ckpt_dir.mkdir(parents=True, exist_ok=True)
+    
+    inference(args)
