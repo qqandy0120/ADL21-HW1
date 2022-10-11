@@ -147,57 +147,6 @@ def main(args):
         args_dict['best_val_loss'] = best_loss
         args_dict['stop_at_epoch'] = epoch
         json.dump(args_dict, f)
-
-def inference(args):
-    # load data
-    intent_idx_path = args.cache_dir / "intent2idx.json"
-    intent2idx = json.loads(intent_idx_path.read_text())
-    test_data_path = args.data_dir / "test.json"
-    test_data = json.loads(test_data_path.read_text())
-    test_dataset = SeqClsDataset(test_data, intent2idx, args.max_len, args.glove_ath)
-    test_dataloader = DataLoader(
-        test_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        collate_fn=test_dataset.collate_fn,
-    )
-
-    # load model
-    infer_epoch = input('Choose inference model epoch')  # need to revise
-    model = SeqClassifier()
-    model.load_state_dict(os.path.join(args.ckpt_dir, args.model_name, f'classifier_{str(infer_epoch.zfill(2))}'))
-    model.eval()
-
-    # choose device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    # prediction list
-    ids = []
-    intents = []
-
-    # testing loop
-    test_bar = tqdm(
-                test_dataloader,
-                position=0,
-                leave=True,
-                total=len(test_dataloader)
-    )
-    for batch in test_bar:
-        batch['text'] = batch['text'].to(device)
-        batch['intent'] = batch['intent'].to(device)
-
-        intent_logits = model(batch['text'])
-        pred_intents_id = torch.argmax(intent_logits, dim=1)  # B
-        pred_intents_id = pred_intents_id.to('cpu')
-
-        ids.extend(batch['id'])
-        intents.extend([test_dataset.idx2label(id) for id in pred_intents_id])
-        
-    pred_dict = pd.DataFrame({
-        'id': ids,
-        'intent': intents
-    })
-    pred_dict.to_csv('intent_pred.csv',index=False)
     
 
 def parse_args() -> Namespace:
