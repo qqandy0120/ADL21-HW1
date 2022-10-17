@@ -167,7 +167,7 @@ def parse_args() -> Namespace:
         "--ckpt_dir",
         type=Path,
         help="Directory to save the model file.",
-        default="./ckpt/intent/",
+        default="./ckpt2/intent/",
     )
 
     # data
@@ -199,7 +199,7 @@ def parse_args() -> Namespace:
 
     # training
     parser.add_argument("--num_epoch", type=int, default=500)
-    parser.add_argument("--duration", type=int, default=50)
+    parser.add_argument("--duration", type=int, default=20)
 
     # model save name
     parser.add_argument("--model_name", type=str)

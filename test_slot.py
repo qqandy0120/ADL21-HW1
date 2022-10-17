@@ -17,8 +17,6 @@ from tqdm import tqdm
 
 def inference(args):
 
-    assert args.model_name is not None and args.infer_epoch is not None, "Please select model name and inference epoch to do inference."
-
     # load data
     tag_idx_path = args.cache_dir / "tag2idx.json"
     tag2idx = json.loads(tag_idx_path.read_text())
@@ -45,7 +43,10 @@ def inference(args):
         batch_first=args.batch_first,
         bidirectional=args.bidirectional,
     ).to(device)
-    model.load_state_dict(torch.load(os.path.join(args.ckpt_dir, args.model_name, f'classifier_{str(args.infer_epoch).zfill(2)}.bin'), map_location=device))
+
+    model_path = os.path.join(args.ckpt_dir, f'best.bin')
+    print(f"Load model from {model_path}")
+    model.load_state_dict(torch.load(model_path))
     model.eval()
     
     # prediction list
@@ -132,9 +133,6 @@ def parse_args() -> Namespace:
     parser.add_argument("--batch_size", type=int, default=128)
 
 
-    # selected model name and epoch
-    parser.add_argument("--model_name", type=str, default='hidden_s_256')
-    parser.add_argument("--infer_epoch", type=int, default=21)
     args = parser.parse_args()
     return args
 

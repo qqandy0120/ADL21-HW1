@@ -43,7 +43,11 @@ def inference(args):
         batch_first=args.batch_first,
         bidirectional=args.bidirectional,
     ).to(device)
-    model.load_state_dict(torch.load(os.path.join(args.ckpt_dir, args.model_name, f'classifier_{str(args.infer_epoch).zfill(2)}.bin'), map_location=device))
+
+    model_path = os.path.join(args.ckpt_dir, f'best.bin')
+    print(f"Load model from {model_path}")
+
+    model.load_state_dict(torch.load(model_path))
     model.eval()
     
     # prediction list
@@ -118,10 +122,6 @@ def parse_args() -> Namespace:
     # data loader
     parser.add_argument("--batch_size", type=int, default=64)
 
-
-    # selected model name and epoch
-    parser.add_argument("--model_name", type=str, default='bs_64')
-    parser.add_argument("--infer_epoch", type=int, default=10)
     args = parser.parse_args()
     return args
 
