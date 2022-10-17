@@ -7,3 +7,4 @@ numpy
 pandas
 scikit-learn==1.1.2
 nltk
+wget

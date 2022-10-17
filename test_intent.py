@@ -20,7 +20,7 @@ def inference(args):
     # load data
     intent_idx_path = args.cache_dir / "intent2idx.json"
     intent2idx = json.loads(intent_idx_path.read_text())
-    test_data_path = args.data_dir / "test.json"
+    test_data_path = args.test_file
     test_data = json.loads(test_data_path.read_text())
     test_dataset = SeqClsDataset(test_data, intent2idx, args.max_len, args.glove_path)
     test_dataloader = DataLoader(
@@ -43,7 +43,7 @@ def inference(args):
         batch_first=args.batch_first,
         bidirectional=args.bidirectional,
     ).to(device)
-    model.load_state_dict(torch.load(os.path.join(args.ckpt_dir, args.model_name, f'classifier_{str(args.infer_epoch).zfill(2)}.bin')))
+    model.load_state_dict(torch.load(os.path.join(args.ckpt_dir, args.model_name, f'classifier_{str(args.infer_epoch).zfill(2)}.bin'), map_location=device))
     model.eval()
     
     # prediction list
@@ -72,17 +72,17 @@ def inference(args):
         'id': ids,
         'intent': intents
     })
-    pred_save_path = os.path.join(args.ckpt_dir, args.model_name, 'intent_pred.csv')
+    pred_save_path = args.pred_file
     pred_dict.to_csv(pred_save_path,index=False)
     
 
 def parse_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument(
-        "--data_dir",
+        "--test_file",
         type=Path,
-        help="Directory to the dataset.",
-        default="./data/intent/",
+        help="Path to the test file.",
+        required=True
     )
     parser.add_argument(
         "--cache_dir",
@@ -96,6 +96,7 @@ def parse_args() -> Namespace:
         help="Directory to save the model file.",
         default="./ckpt/intent/",
     )
+    parser.add_argument("--pred_file", type=Path, default="pred_intent.csv")
 
     # data
     parser.add_argument(
@@ -115,12 +116,12 @@ def parse_args() -> Namespace:
 
 
     # data loader
-    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--batch_size", type=int, default=64)
 
 
     # selected model name and epoch
-    parser.add_argument("--model_name", type=str)
-    parser.add_argument("--infer_epoch", type=int)
+    parser.add_argument("--model_name", type=str, default='bs_64')
+    parser.add_argument("--infer_epoch", type=int, default=10)
     args = parser.parse_args()
     return args
 

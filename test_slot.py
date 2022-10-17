@@ -22,7 +22,7 @@ def inference(args):
     # load data
     tag_idx_path = args.cache_dir / "tag2idx.json"
     tag2idx = json.loads(tag_idx_path.read_text())
-    test_data_path = args.data_dir / "test.json"
+    test_data_path = args.test_file
     test_data = json.loads(test_data_path.read_text())
     test_dataset = SeqTaggingClsDataset(test_data, tag2idx, args.max_len, args.glove_path)
     test_dataloader = DataLoader(
@@ -45,7 +45,7 @@ def inference(args):
         batch_first=args.batch_first,
         bidirectional=args.bidirectional,
     ).to(device)
-    model.load_state_dict(torch.load(os.path.join(args.ckpt_dir, args.model_name, f'classifier_{str(args.infer_epoch).zfill(2)}.bin')))
+    model.load_state_dict(torch.load(os.path.join(args.ckpt_dir, args.model_name, f'classifier_{str(args.infer_epoch).zfill(2)}.bin'), map_location=device))
     model.eval()
     
     # prediction list
@@ -79,12 +79,18 @@ def inference(args):
         'id': final_ids,
         'tags': final_tags
     })
-    pred_save_path = os.path.join(args.ckpt_dir, args.model_name, 'tags_pred.csv')
+    pred_save_path = args.pred_file
     pred_dict.to_csv(pred_save_path,index=False)
     
 
 def parse_args() -> Namespace:
     parser = ArgumentParser()
+    parser.add_argument(
+        "--test_file",
+        type=Path,
+        help="Path to the test file.",
+        required=True
+    )
     parser.add_argument(
         "--data_dir",
         type=Path,
@@ -103,6 +109,7 @@ def parse_args() -> Namespace:
         help="Directory to save the model file.",
         default="./ckpt/slot/",
     )
+    parser.add_argument("--pred_file", type=Path, default="pred_slot.csv")
 
     # data
     parser.add_argument(
@@ -114,7 +121,7 @@ def parse_args() -> Namespace:
 
     # model
     parser.add_argument('--input_size', type=int, help="word embedding dimension", default=300)
-    parser.add_argument("--hidden_size", type=int, default=512)
+    parser.add_argument("--hidden_size", type=int, default=256)
     parser.add_argument("--num_layers", type=int, default=2)
     parser.add_argument("--batch_first", type=bool, default=True)
     parser.add_argument("--dropout", type=float, default=0.1)
@@ -126,8 +133,8 @@ def parse_args() -> Namespace:
 
 
     # selected model name and epoch
-    parser.add_argument("--model_name", type=str)
-    parser.add_argument("--infer_epoch", type=int)
+    parser.add_argument("--model_name", type=str, default='hidden_s_256')
+    parser.add_argument("--infer_epoch", type=int, default=21)
     args = parser.parse_args()
     return args
 
@@ -135,5 +142,5 @@ if __name__ == "__main__":
 
     args = parse_args()
     args.ckpt_dir.mkdir(parents=True, exist_ok=True)
-    
+
     inference(args)
