@@ -168,7 +168,7 @@ def main(args):
         args_dict = vars(args)
         for key, value in args_dict.items():
             args_dict[key] = str(value)
-        args_dict['best_val_loss'] = best_loss
+        args_dict['best_val_loss'] = best_loss.item()
         args_dict['stop_at_epoch'] = epoch
         json.dump(args_dict, f)
 
