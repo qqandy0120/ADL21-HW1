@@ -16,7 +16,19 @@ pip install -r requirements.in
 bash preprocess.sh
 ```
 
-## Intent detection
+
+## Download Model
 ```shell
-python train_intent.py
+# To download model from dropbox
+bash download.sh
+```
+
+## Intent Inference
+```shell
+bash intent_cls.sh {file/to/test.json} {file/to/save/prediction_intent.csv}
+```
+
+## Slot Inference
+```shell
+bash slot_tag.sh {file/to/test.json} {file/to/save/prediction_slot.csv}
 ```
